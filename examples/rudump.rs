@@ -5,7 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use extcap::*;
 use log::{debug, warn, LevelFilter};
-use pcap_file::{pcap::PcapHeader, DataLink, PcapWriter};
+use pcap_file::pcap::{PcapHeader, PcapPacket, PcapWriter};
+use pcap_file::DataLink;
 use simplelog::{Config, SimpleLogger, WriteLogger};
 use std::net::{SocketAddr, UdpSocket};
 
@@ -103,12 +104,12 @@ impl ExtcapListener for RUdpDump {
             let ts = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("SystemTime before UNIX EPOCH");
-            let _ = pcap_writer.write(
-                ts.as_secs() as u32,
-                ts.subsec_micros(),
-                &buf[..rcv_len],
+            let packet = PcapPacket::new(
+                ts,
                 rcv_len as u32,
+                &buf[..rcv_len]
             );
+            let _ = pcap_writer.write_packet(&packet);
         }
 
         debug!("capture() finished");

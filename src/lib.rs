@@ -10,7 +10,9 @@
 //! ## Quick Example
 //! ```
 //! use extcap::{Extcap, ExtcapListener, ExtcapResult, ExtcapWriter, IFace};
-//! use pcap_file::{pcap::PcapHeader, DataLink, PcapWriter};
+//! use pcap_file::pcap::{PcapHeader, PcapPacket, PcapWriter};
+//! use pcap_file::DataLink;
+//! use std::time::Duration;
 //!
 //! struct HelloDump {}
 //!
@@ -20,8 +22,9 @@
 //!     }
 //!
 //!     fn capture(&mut self, extcap: &Extcap, ifc: &IFace, mut pcap_writer: PcapWriter<ExtcapWriter>) -> ExtcapResult<()> {
-//!         let pkt = b"Hello Extcap!";
-//!         pcap_writer.write(0, 0, pkt, pkt.len() as u32);
+//!         let data = b"Hello Extcap!";
+//!         let pkt = PcapPacket::new(Duration::new(0, 0), data.len() as u32, data);
+//!         pcap_writer.write_packet(&pkt);
 //!         Ok(())
 //!     }
 //! }
@@ -51,7 +54,7 @@ use futures::future;
 use futures::{channel::mpsc::Receiver, stream::StreamExt};
 use log::{debug, warn};
 #[cfg(feature = "async-api")]
-use pcap_file::pcap::Packet;
+use pcap_file::pcap::PcapPacket;
 use pcap_file::pcap::{PcapHeader, PcapWriter};
 
 mod error;
@@ -134,7 +137,7 @@ fn create_pcap_writer(fifo: &str, pcap_header: PcapHeader) -> io::Result<PcapWri
     } else {
         ExtcapWriter::EWFile(File::create(fifo)?)
     };
-    PcapWriter::with_header(pcap_header, writer)
+    PcapWriter::with_header(writer, pcap_header)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{:?}", e)))
 }
 
@@ -143,7 +146,7 @@ pub type ExtcapResult<T> = Result<T, ExtcapError>;
 
 /// Packet receiver for async-api
 #[cfg(feature = "async-api")]
-pub type ExtcapReceiver = Receiver<Packet<'static>>;
+pub type ExtcapReceiver = Receiver<PcapPacket<'static>>;
 
 /// A trait for Extcap callbacks
 pub trait ExtcapListener {
@@ -228,7 +231,7 @@ enum TillCaptureOutcome<T> {
 
 type TillCaptureResult<T> = Result<TillCaptureOutcome<T>, ExtcapError>;
 
-/// Exctcap representation
+/// Extcap representation
 #[derive(Default)]
 pub struct Extcap<'a> {
     step: ExtcapStep,
@@ -541,16 +544,17 @@ impl<'a> Extcap<'a> {
         };
 
         // Determine the step
-        self.step = if self.get_matches().is_present(OPT_EXTCAP_INTERFACES) {
+        self.step = if self.get_matches().contains_id(OPT_EXTCAP_INTERFACES) {
             ExtcapStep::QueryIfaces
-        } else if self.get_matches().is_present(OPT_EXTCAP_DTLS) {
+        } else if self.get_matches().contains_id(OPT_EXTCAP_DTLS) {
             ExtcapStep::QueryDlts
-        } else if self.get_matches().is_present(OPT_EXTCAP_CONFIG) {
-            let reload = self.get_matches().is_present(OPT_EXTCAP_RELOAD_OPTION);
+        } else if self.get_matches().contains_id(OPT_EXTCAP_CONFIG) {
+            let reload = self.get_matches().contains_id(OPT_EXTCAP_RELOAD_OPTION);
             ExtcapStep::ConfigIface { reload }
-        } else if self.get_matches().is_present(OPT_CAPTURE) {
-            let ctrl_pipe = self.get_matches().is_present(OPT_EXTCAP_CONTROL_IN)
-                && self.get_matches().is_present(OPT_EXTCAP_CONTROL_OUT);
+        } else if self.get_matches().contains_id(OPT_CAPTURE) {
+            let ctrl_pipe = self.app_args.contains(OPT_EXTCAP_CONTROL_IN)
+                && self.get_matches().contains_id(OPT_EXTCAP_CONTROL_IN)
+                && self.get_matches().contains_id(OPT_EXTCAP_CONTROL_OUT);
             ExtcapStep::Capture { ctrl_pipe }
         } else {
             ExtcapStep::None

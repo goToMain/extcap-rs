@@ -6,13 +6,14 @@ use extcap::*;
 use futures::channel::mpsc::{self, Receiver, Sender};
 use futures::prelude::*;
 use log::{debug, LevelFilter};
-use pcap_file::{pcap::Packet, pcap::PcapHeader, DataLink};
+use pcap_file::pcap::{PcapPacket, PcapHeader};
+use pcap_file::DataLink;
 use simplelog::{Config, SimpleLogger, WriteLogger};
 
 struct TestControlDump {}
 
 struct CaptureCtx {
-    extcap_sender: Sender<Packet<'static>>,
+    extcap_sender: Sender<PcapPacket<'static>>,
     pipe_out: Option<Sender<ControlMsg>>,
 }
 
@@ -97,16 +98,15 @@ async fn task(mut ctx: CaptureCtx, pipe_in: Option<Receiver<ControlMsg>>) {
     write_msg(&mut ctx.extcap_sender, "End").await;
 }
 
-async fn write_msg(snd: &mut Sender<Packet<'static>>, msg: &str) {
+async fn write_msg(snd: &mut Sender<PcapPacket<'static>>, msg: &str) {
     debug!("write_msg() {}", msg);
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("SystemTime before UNIX EPOCH");
-    let pkt = Packet::new_owned(
-        ts.as_secs() as u32,
-        ts.subsec_micros(),
-        msg.as_bytes().to_vec(),
+    let pkt = PcapPacket::new_owned(
+        ts,
         msg.as_bytes().len() as u32,
+        msg.as_bytes().to_vec(),
     );
     let _ = snd.send(pkt).await;
 }

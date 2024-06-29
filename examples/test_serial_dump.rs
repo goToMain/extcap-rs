@@ -5,7 +5,8 @@ use extcap::*;
 use futures::channel::mpsc::{self, Sender};
 use futures::prelude::*;
 use log::{debug, warn, LevelFilter};
-use pcap_file::{pcap::Packet, pcap::PcapHeader, DataLink};
+use pcap_file::DataLink;
+use pcap_file::pcap::{PcapHeader, PcapPacket};
 use serialport::available_ports;
 use simplelog::{Config, SimpleLogger, WriteLogger};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
@@ -82,7 +83,7 @@ impl ExtcapListener for TestSerialDump {
     }
 }
 
-async fn task(port: SerialStream, mut sender: Sender<Packet<'static>>) {
+async fn task(port: SerialStream, mut sender: Sender<PcapPacket<'static>>) {
     let mut reader = FramedRead::new(port, LinesCodec::new());
     while let Some(res) = reader.next().await {
         match res {
@@ -98,16 +99,15 @@ async fn task(port: SerialStream, mut sender: Sender<Packet<'static>>) {
     }
 }
 
-async fn write_pkt(snd: &mut Sender<Packet<'static>>, msg: &str) {
+async fn write_pkt(snd: &mut Sender<PcapPacket<'static>>, msg: &str) {
     debug!("write_msg() {}", msg);
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("SystemTime before UNIX EPOCH");
-    let pkt = Packet::new_owned(
-        ts.as_secs() as u32,
-        ts.subsec_micros(),
-        msg.as_bytes().to_vec(),
+    let pkt = PcapPacket::new_owned(
+        ts,
         msg.as_bytes().len() as u32,
+        msg.as_bytes().to_vec(),
     );
     let _ = snd.send(pkt).await;
 }

@@ -6,7 +6,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use extcap::*;
 use log::{debug, LevelFilter};
-use pcap_file::{pcap::PcapHeader, DataLink, PcapWriter};
+use pcap_file::pcap::{PcapHeader, PcapPacket, PcapWriter};
+use pcap_file::DataLink;
 use rand::Rng;
 use simplelog::{Config, SimpleLogger, WriteLogger};
 
@@ -119,12 +120,12 @@ impl ExtcapListener for RRPktDump {
             let ts = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("SystemTime before UNIX EPOCH");
-            let _ = pcap_writer.write(
-                ts.as_secs() as u32,
-                ts.subsec_micros(),
-                &data,
+            let packet = PcapPacket::new(
+                ts,
                 data.len() as u32,
+                &data
             );
+            let _ = pcap_writer.write_packet(&packet);
 
             cnt += 1;
             thread::sleep(delay);

@@ -3,7 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use extcap::*;
 use log::{debug, LevelFilter};
-use pcap_file::{pcap::PcapHeader, DataLink, PcapWriter};
+use pcap_file::pcap::{PcapHeader, PcapPacket, PcapWriter};
+use pcap_file::DataLink;
 use simplelog::{Config, SimpleLogger, WriteLogger};
 
 const OPT_SERVER: &str = "server";
@@ -90,12 +91,12 @@ impl ExtcapListener for TestArgDump {
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("SystemTime before UNIX EPOCH");
-        let _ = pcap_writer.write(
-            ts.as_secs() as u32,
-            ts.subsec_micros(),
-            msg.as_bytes(),
+        let packet = PcapPacket::new(
+            ts,
             msg.as_bytes().len() as u32,
+            msg.as_bytes()
         );
+        let _ = pcap_writer.write_packet(&packet);
 
         debug!("capture() finished");
         Ok(())
