@@ -557,14 +557,18 @@ impl<'a> Extcap<'a> {
         };
 
         // Log initialization
-        let debug = self.get_matches().is_present(OPT_DEBUG);
-        let debug_file = self.get_matches().value_of(OPT_DEBUG_FILE).and_then(|s| {
-            if s.trim().is_empty() {
-                None
-            } else {
-                Some(s)
-            }
-        });
+        let debug = self.ifc_debug && self.get_matches().contains_id(OPT_DEBUG);
+        let debug_file = if self.ifc_debug {
+            self.get_matches().value_of(OPT_DEBUG_FILE).and_then(|s| {
+                if s.trim().is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            })
+        } else {
+            None
+        };
         listener.init_log(self, debug, debug_file);
         debug!("=======================");
         debug!(
